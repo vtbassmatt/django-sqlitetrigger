@@ -8,10 +8,24 @@ version = "0.1.0"
 description = "SQLite trigger support integrated with Django models."
 readme = "README.md"
 license = "BSD-3-Clause"
+license-files = ["LICENSE"]
 requires-python = ">=3.14"
 dependencies = [
     "django>=6.0",
 ]
+keywords = ["django", "sqlite", "triggers"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+    "Framework :: Django",
+    "Framework :: Django :: 6.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/vtbassmatt/django-sqlitetrigger"
+Issues = "https://github.com/vtbassmatt/django-sqlitetrigger/issues"
+Repository = "https://github.com/vtbassmatt/django-sqlitetrigger.git"
 
 [project.optional-dependencies]
 dev = [
