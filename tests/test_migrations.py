@@ -4,6 +4,7 @@ import pytest
 from io import StringIO
 
 from django.core.management import call_command
+from django.db import IntegrityError
 from django.db.migrations.autodetector import MigrationAutodetector
 from django.db.migrations.state import ProjectState
 
@@ -115,3 +116,86 @@ def test_makemigrations_detects_triggers():
     # If there are pending migrations, they should include trigger operations
     # If migrations are up to date, that's fine too — the patching is what matters
     # The key test is test_autodetector_patched above
+
+
+@pytest.mark.django_db(transaction=True)
+def test_triggers_survive_table_rebuild():
+    """Test that triggers are restored after SQLite's _remake_table."""
+    from django.db import connection
+    from tests.models import ProtectedModel
+
+    from sqlitetrigger import installation
+
+    installation.install()
+
+    # Verify trigger exists
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT name FROM sqlite_master WHERE type='trigger' "
+            "AND name LIKE 'sqlitetrigger_tests_protectedmodel%'"
+        )
+        triggers_before = {row[0] for row in cursor.fetchall()}
+    assert len(triggers_before) > 0
+
+    # Simulate a table rebuild (what Django does for ALTER TABLE on SQLite)
+    with connection.schema_editor() as editor:
+        editor._remake_table(ProtectedModel)
+
+    # Verify triggers are still there
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT name FROM sqlite_master WHERE type='trigger' "
+            "AND name LIKE 'sqlitetrigger_tests_protectedmodel%'"
+        )
+        triggers_after = {row[0] for row in cursor.fetchall()}
+
+    assert triggers_before == triggers_after
+
+    # Verify the trigger still works
+    obj = ProtectedModel.objects.create(name="test")
+    with pytest.raises(IntegrityError, match="Cannot delete"):
+        obj.delete()
+
+    installation.uninstall()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_column_rename_warns():
+    """Test that a column rename through _remake_table warns about stale trigger SQL."""
+    from django.db import connection, models
+    from tests.models import ReadOnlyModel
+
+    from sqlitetrigger import installation
+
+    installation.install()
+
+    # When _remake_table is called with alter_fields containing a column rename,
+    # we should get a warning. We need to go through _remake_table (not the
+    # RENAME COLUMN fast-path), so simulate a rename + type change.
+    old_field = ReadOnlyModel._meta.get_field("created_at")
+    new_field = models.TextField(default="now")  # Changed type from CharField to TextField
+    new_field.set_attributes_from_name("renamed_at")
+    new_field.column = "renamed_at"
+    new_field.model = ReadOnlyModel
+
+    with connection.schema_editor() as editor:
+        with pytest.warns(UserWarning, match="Column.*renamed.*created_at -> renamed_at"):
+            editor._remake_table(ReadOnlyModel, alter_fields=[(old_field, new_field)])
+
+    installation.uninstall()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_schema_editor_patched():
+    """Verify the SQLite schema editor has been patched with our mixin."""
+    from django.db import connections
+
+    from sqlitetrigger.migrations import DatabaseSchemaEditorMixin
+
+    connection = connections["default"]
+    connection.disable_constraint_checking()
+    try:
+        with connection.schema_editor() as editor:
+            assert isinstance(editor, DatabaseSchemaEditorMixin)
+    finally:
+        connection.enable_constraint_checking()

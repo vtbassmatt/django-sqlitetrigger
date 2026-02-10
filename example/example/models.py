@@ -13,7 +13,7 @@ class Book(models.Model):
                 func="UPDATE example_book SET sheets = new.pages / 2 WHERE id = new.id;",
             )
         ]
-    title = models.CharField(max_length=100)
+    title = models.CharField(max_length=200)
     pages = models.PositiveIntegerField()
     sheets = models.PositiveIntegerField(editable=False)
 

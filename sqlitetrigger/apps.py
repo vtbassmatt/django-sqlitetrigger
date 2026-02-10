@@ -1,5 +1,7 @@
 import django.apps
+from django.conf import settings
 from django.db.models import options
+from django.db.utils import load_backend
 
 # Patch Meta to accept triggers BEFORE models are loaded
 if "triggers" not in options.DEFAULT_NAMES:
@@ -38,6 +40,28 @@ def _patch_migrations():
     migrate.Command.autodetector = makemigrations.MigrationAutodetector
 
 
+def _patch_schema_editor():
+    """Patch SQLite's schema editor to preserve triggers across table rebuilds."""
+    import django.db.backends.sqlite3.schema as sqlite_schema
+
+    from sqlitetrigger.migrations import DatabaseSchemaEditorMixin
+
+    for config in settings.DATABASES.values():
+        backend = load_backend(config["ENGINE"])
+        schema_editor_class = backend.DatabaseWrapper.SchemaEditorClass
+
+        if (
+            schema_editor_class
+            and issubclass(schema_editor_class, sqlite_schema.DatabaseSchemaEditor)
+            and not issubclass(schema_editor_class, DatabaseSchemaEditorMixin)
+        ):
+            backend.DatabaseWrapper.SchemaEditorClass = type(
+                "DatabaseSchemaEditor",
+                (DatabaseSchemaEditorMixin, schema_editor_class),
+                {},
+            )
+
+
 class SqliteTriggerConfig(django.apps.AppConfig):
     name = "sqlitetrigger"
 
@@ -45,6 +69,7 @@ class SqliteTriggerConfig(django.apps.AppConfig):
         from sqlitetrigger import core
 
         _patch_migrations()
+        _patch_schema_editor()
 
         # Auto-register triggers from model Meta
         for model in django.apps.apps.get_models():

@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import hashlib
+import logging
+import warnings
 from collections.abc import Sequence
 from typing import Any
 
 from django.db import transaction
 from django.db.backends.base.schema import BaseDatabaseSchemaEditor
+
+LOGGER = logging.getLogger("sqlitetrigger")
 from django.db.migrations.autodetector import OperationDependency
 from django.db.migrations.operations.base import OperationCategory
 from django.db.migrations.operations.fields import AddField
@@ -312,3 +316,69 @@ class MigrationAutodetectorMixin:
                     ],
                 )
         super().generate_deleted_proxies()
+
+
+class DatabaseSchemaEditorMixin:
+    """Mixin for SQLite's DatabaseSchemaEditor.
+
+    SQLite emulates ALTER TABLE by creating a new table, copying data,
+    dropping the old table, and renaming the new one. Dropping the old
+    table silently destroys all triggers on it. This mixin saves and
+    restores sqlitetrigger-managed triggers across that operation.
+    """
+
+    def _remake_table(self, model, create_field=None, delete_field=None, alter_fields=None):
+        table_name = model._meta.db_table
+
+        # Capture all sqlitetrigger-managed triggers on this table
+        saved_triggers = self._save_sqlitetrigger_triggers(table_name)
+
+        # Check for column renames and warn
+        column_renames = {}
+        if alter_fields:
+            for old_field, new_field in alter_fields:
+                if old_field.column != new_field.column:
+                    column_renames[old_field.column] = new_field.column
+
+        if saved_triggers and column_renames:
+            renamed_cols = ", ".join(
+                f"{old} -> {new}" for old, new in column_renames.items()
+            )
+            trigger_names = ", ".join(name for name, _ in saved_triggers)
+            warnings.warn(
+                f"sqlitetrigger: Column(s) renamed ({renamed_cols}) on table "
+                f"'{table_name}'. Triggers ({trigger_names}) have been restored "
+                f"with the original SQL and may reference stale column names. "
+                f"Review and update your trigger definitions, then run "
+                f"'manage.py sqlitetrigger install' to reinstall them.",
+                UserWarning,
+                stacklevel=2,
+            )
+
+        # Do the actual table rebuild (triggers are lost here)
+        super()._remake_table(
+            model,
+            create_field=create_field,
+            delete_field=delete_field,
+            alter_fields=alter_fields,
+        )
+
+        # Restore the triggers
+        self._restore_sqlitetrigger_triggers(saved_triggers)
+
+    def _save_sqlitetrigger_triggers(self, table_name: str) -> list[tuple[str, str]]:
+        """Save CREATE TRIGGER SQL for all sqlitetrigger triggers on a table."""
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT name, sql FROM sqlite_master "
+                "WHERE type = 'trigger' AND tbl_name = %s AND name LIKE 'sqlitetrigger_%%'",
+                [table_name],
+            )
+            return cursor.fetchall()
+
+    def _restore_sqlitetrigger_triggers(self, triggers: list[tuple[str, str]]) -> None:
+        """Re-execute saved CREATE TRIGGER statements."""
+        for name, sql in triggers:
+            if sql:
+                LOGGER.debug("sqlitetrigger: Restoring trigger %s after table rebuild.", name)
+                self.execute(sql)
