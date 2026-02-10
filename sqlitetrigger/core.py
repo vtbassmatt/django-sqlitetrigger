@@ -158,7 +158,7 @@ class Trigger:
     def __repr__(self):
         return f"{self.__class__.__name__}(name={self.name!r})"
 
-    def get_pgid(self, model: type[Model]) -> str:
+    def get_trigger_id(self, model: type[Model]) -> str:
         """Get the full trigger identifier for the database."""
         table = model._meta.db_table
         return f"sqlitetrigger_{table}_{self.name}"
@@ -231,7 +231,7 @@ class Trigger:
                 op_suffix = str(op).lower().replace(" ", "_")
                 trigger_id = f"sqlitetrigger_{table}_{self.name}_{op_suffix}"
             else:
-                trigger_id = self.get_pgid(model)
+                trigger_id = self.get_trigger_id(model)
 
             sql = (
                 f"CREATE TRIGGER {trigger_id}\n"
@@ -254,7 +254,7 @@ class Trigger:
                 op_suffix = str(op).lower().replace(" ", "_")
                 trigger_id = f"sqlitetrigger_{table}_{self.name}_{op_suffix}"
             else:
-                trigger_id = self.get_pgid(model)
+                trigger_id = self.get_trigger_id(model)
             statements.append(f"DROP TRIGGER IF EXISTS {trigger_id};")
         return statements
 
