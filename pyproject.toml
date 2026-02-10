@@ -32,11 +32,13 @@ dev = [
     "pytest>=9.0",
     "pytest-django>=4.11",
     "django-dynamic-fixture>=4.0",
+    "pytest-cov>=7.0.0",
 ]
 
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "tests.settings"
 testpaths = ["tests"]
+addopts = "--cov=sqlitetrigger"
 
 [tool.hatch.build.targets.wheel]
 packages = ["sqlitetrigger"]
