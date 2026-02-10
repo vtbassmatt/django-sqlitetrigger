@@ -10,7 +10,7 @@ class Book(models.Model):
                 name='sheets_update',
                 when=After,
                 operation=Update,
-                func="UPDATE example_book SET sheets = new.pages / 2 WHERE id = new.id;",
+                func="UPDATE example_book SET sheets = ceil(new.pages / 2.0) WHERE id = new.id;",
             )
         ]
     title = models.CharField(max_length=200)
