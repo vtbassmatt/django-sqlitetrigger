@@ -74,7 +74,7 @@ class SqliteTriggerConfig(django.apps.AppConfig):
         # Auto-register triggers from model Meta
         for model in django.apps.apps.get_models():
             for trigger in getattr(model._meta, "triggers", []):
-                if not isinstance(trigger, core.Trigger):
+                if not isinstance(trigger, core.Trigger):  # pragma: no cover
                     raise TypeError(
                         f"Triggers in {model} Meta must be sqlitetrigger.Trigger instances"
                     )

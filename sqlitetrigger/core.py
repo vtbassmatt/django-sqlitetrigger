@@ -170,7 +170,7 @@ class Trigger:
         """
         if self.func:
             return self.func
-        raise NotImplementedError("Trigger subclasses must implement get_func() or set func")
+        raise NotImplementedError("Trigger subclasses must implement get_func() or set func")  # pragma: no cover
 
     def get_func_template_kwargs(self, model: type[Model]) -> dict[str, Any]:
         """Return keyword arguments for rendering a Func template.
@@ -198,12 +198,9 @@ class Trigger:
             return f"\n    WHEN ({self.condition})"
         return f"\n    WHEN ({self.condition.resolve(model)})"
 
-    def _get_operation_sql(self) -> str:
-        """Render the operation clause."""
+    def _get_operation_sql(self) -> str:  # pragma: no cover
+        """Render the operation clause (unused — _iter_operations is used instead)."""
         if isinstance(self.operation, Operations):
-            # SQLite doesn't support multiple operations in one trigger.
-            # We'll need multiple triggers — but for now, just use the first.
-            # The install() method handles splitting.
             return str(self.operation.operations[0])
         return str(self.operation)
 

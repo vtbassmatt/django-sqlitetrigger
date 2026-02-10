@@ -145,6 +145,87 @@ def test_operations_or():
     assert len(combined.operations) == 3
 
 
+def test_primitive_repr():
+    assert repr(core.Before) == "BEFORE"
+    assert repr(core.Insert) == "INSERT"
+
+
+def test_primitive_or_with_operations():
+    ops = core.Operations(core.Update, core.Delete)
+    combined = core.Insert | ops
+    assert isinstance(combined, core.Operations)
+    assert len(combined.operations) == 3
+
+
+def test_update_of_repr():
+    uo = core.UpdateOf("a", "b")
+    assert repr(uo) == "UpdateOf('a', 'b')"
+
+
+def test_update_of_hash():
+    uo1 = core.UpdateOf("a", "b")
+    uo2 = core.UpdateOf("a", "b")
+    assert hash(uo1) == hash(uo2)
+
+
+def test_update_of_eq():
+    uo1 = core.UpdateOf("a", "b")
+    uo2 = core.UpdateOf("a", "b")
+    uo3 = core.UpdateOf("a", "c")
+    assert uo1 == uo2
+    assert uo1 != uo3
+    assert uo1 != "not an UpdateOf"
+
+
+def test_update_of_or():
+    uo = core.UpdateOf("a")
+    combined = uo | core.Delete
+    assert isinstance(combined, core.Operations)
+    assert len(combined.operations) == 2
+
+
+def test_update_of_or_with_operations():
+    uo = core.UpdateOf("a")
+    ops = core.Operations(core.Insert, core.Delete)
+    combined = uo | ops
+    assert isinstance(combined, core.Operations)
+    assert len(combined.operations) == 3
+
+
+def test_operations_str():
+    ops = core.Operations(core.Insert, core.Delete)
+    assert str(ops) == "INSERT OR DELETE"
+
+
+def test_operations_or_with_operations():
+    ops1 = core.Operations(core.Insert)
+    ops2 = core.Operations(core.Delete)
+    combined = ops1 | ops2
+    assert isinstance(combined, core.Operations)
+    assert len(combined.operations) == 2
+
+
+def test_trigger_repr(db):
+    t = core.Trigger(name="my_trig", when=core.Before, operation=core.Insert, func="SELECT 1;")
+    assert repr(t) == "Trigger(name='my_trig')"
+
+
+def test_trigger_condition_with_condition_object(db):
+    from tests.models import TestModel
+    from sqlitetrigger.conditions import Q, F
+
+    trigger = core.Trigger(
+        name="cond_obj",
+        when=core.Before,
+        operation=core.Update,
+        condition=Q(old__int_field__isnot=F("new__int_field")),
+        func="SELECT 1;",
+    )
+    stmts = trigger.compile(TestModel)
+    assert "WHEN" in stmts[0]
+    assert "IS NOT" in stmts[0]
+
+
 def test_update_of_requires_columns():
     with pytest.raises(ValueError, match="at least one column"):
         core.UpdateOf()
