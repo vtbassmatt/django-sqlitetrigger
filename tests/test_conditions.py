@@ -137,3 +137,20 @@ def test_condition_invert():
     negated = ~q
     sql = negated.resolve(MockModel)
     assert sql == "NOT (OLD.a = 1)"
+
+
+def test_f_repr():
+    f = F("old__name")
+    assert repr(f) == "F('old__name')"
+
+
+def test_q_repr():
+    q = Q(old__status="active")
+    assert repr(q) == "Q(old__status='active')"
+
+
+def test_q_resolve_field_no_model():
+    q = Q(old__my_field=1)
+    # When model is None (not passed), field name is used as-is
+    sql = q.resolve(None)
+    assert sql == "OLD.my_field = 1"

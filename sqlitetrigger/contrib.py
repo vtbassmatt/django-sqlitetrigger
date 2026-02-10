@@ -116,7 +116,7 @@ class SoftDelete(core.Trigger):
             return "1" if self.value else "0"
         if isinstance(self.value, (int, float)):
             return str(self.value)
-        if self.value is None:
+        if self.value is None:  # pragma: no cover — constructor rejects None
             return "NULL"
         escaped = str(self.value).replace("'", "''")
         return f"'{escaped}'"

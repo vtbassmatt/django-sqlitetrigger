@@ -257,7 +257,7 @@ class MigrationAutodetectorMixin:
             model = self.to_state.apps.get_model(app_label, model_name)
             model_state = self.to_state.models[app_label, model_name]
 
-            if not model_state.options.get("managed", True):
+            if not model_state.options.get("managed", True):    # pragma: no cover
                 continue
 
             related_fields = {

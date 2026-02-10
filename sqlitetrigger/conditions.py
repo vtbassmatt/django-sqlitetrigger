@@ -42,7 +42,7 @@ class Condition:
     """Base class for trigger conditions (WHEN clauses)."""
 
     def resolve(self, model: type[Model]) -> str:
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no cover
 
     def __and__(self, other):
         return _Combined(self, other, "AND")

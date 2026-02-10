@@ -70,3 +70,41 @@ def test_register_function_decorator(db):
     results = registry.registered()
     uris = [f"{m._meta.label}:{t.name}" for m, t in results]
     assert "tests.TempModel:func_reg" in uris
+
+
+def test_delete_from_registry(db):
+    from tests.models import TestModel
+
+    trigger = Trigger(name="del_test", when=Before, operation=Insert, func="SELECT 1;")
+    trigger.register(TestModel)
+
+    uri = "tests.TestModel:del_test"
+    assert any(u == uri for u in [f"{m._meta.label}:{t.name}" for m, t in registry.registered()])
+
+    registry.delete(uri)
+    assert not any(
+        u == uri for u in [f"{m._meta.label}:{t.name}" for m, t in registry.registered()]
+    )
+
+
+def test_duplicate_trigger_name_different_model(db):
+    """Registering the same trigger name on two models sharing the same table should fail."""
+    from django.db import models
+
+    t1 = Trigger(name="shared_name", when=Before, operation=Insert, func="SELECT 1;")
+
+    class ModelA(models.Model):
+        class Meta:
+            app_label = "tests"
+            db_table = "tests_shared_table"
+
+    class ModelB(models.Model):
+        class Meta:
+            app_label = "tests"
+            db_table = "tests_shared_table"
+
+    t1.register(ModelA)
+
+    t2 = Trigger(name="shared_name", when=Before, operation=Insert, func="SELECT 2;")
+    with pytest.raises(KeyError, match="already used"):
+        t2.register(ModelB)
