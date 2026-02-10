@@ -113,6 +113,32 @@ def test_install_uninstall(db):
         assert cursor.fetchone() is None
 
 
+def test_func_rendering(db):
+    from tests.models import TestModel
+
+    trigger = core.Trigger(
+        name="func_test",
+        when=core.Before,
+        operation=core.Delete,
+        func=core.Func("SELECT RAISE(ABORT, 'no deletes on {meta.db_table}');"),
+    )
+    stmts = trigger.compile(TestModel)
+    assert "no deletes on tests_testmodel" in stmts[0]
+
+
+def test_func_columns(db):
+    from tests.models import TestModel
+
+    trigger = core.Trigger(
+        name="func_cols",
+        when=core.After,
+        operation=core.Update,
+        func=core.Func("SELECT {columns.int_field} FROM {meta.db_table};"),
+    )
+    rendered = trigger.render_func(TestModel)
+    assert rendered == "SELECT int_field FROM tests_testmodel;"
+
+
 def test_operations_or():
     combined = core.Insert | core.Update | core.Delete
     assert isinstance(combined, core.Operations)

@@ -1,6 +1,6 @@
 from django.db import models
 
-from sqlitetrigger import Trigger, After, Update
+from sqlitetrigger import Trigger, After, Update, Func
 
 # Create your models here.
 class Book(models.Model):
@@ -10,7 +10,7 @@ class Book(models.Model):
                 name='sheets_update',
                 when=After,
                 operation=Update,
-                func="UPDATE example_book SET sheets = ceil(new.pages / 2.0) WHERE id = new.id;",
+                func=Func("UPDATE {meta.db_table} SET {columns.sheets} = ceil(new.{columns.pages} / 2.0) WHERE {columns.id} = new.{columns.id};"),
             )
         ]
     title = models.CharField(max_length=200)

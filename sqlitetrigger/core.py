@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from django.db import DEFAULT_DB_ALIAS
 
@@ -13,6 +13,14 @@ if TYPE_CHECKING:
 
 # Max trigger name length (SQLite has no formal limit, but keep it reasonable)
 MAX_NAME_LENGTH = 63
+
+
+class _AttrDict(dict):
+    """A dictionary where keys can be accessed as attributes."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.__dict__ = self
 
 
 class _Primitive:
@@ -121,7 +129,7 @@ class Trigger:
     when: Timing | None = None
     operation: Operation | UpdateOf | Operations | None = None
     condition: Condition | str | None = None
-    func: str | None = None
+    func: Func | str | None = None
 
     def __init__(
         self,
@@ -130,7 +138,7 @@ class Trigger:
         when: Timing | None = None,
         operation: Operation | UpdateOf | Operations | None = None,
         condition: Condition | str | None = None,
-        func: str | None = None,
+        func: Func | str | None = None,
     ):
         self.name = name or self.__class__.name
         self.when = when or self.__class__.when
@@ -155,14 +163,32 @@ class Trigger:
         table = model._meta.db_table
         return f"sqlitetrigger_{table}_{self.name}"
 
-    def get_func(self, model: type[Model]) -> str:
-        """Return the trigger body SQL.
+    def get_func(self, model: type[Model]) -> Func | str:
+        """Return the trigger body (a Func or raw SQL string).
 
         Subclasses override this to generate appropriate SQL.
         """
         if self.func:
             return self.func
         raise NotImplementedError("Trigger subclasses must implement get_func() or set func")
+
+    def get_func_template_kwargs(self, model: type[Model]) -> dict[str, Any]:
+        """Return keyword arguments for rendering a Func template.
+
+        Provides `meta`, `fields`, and `columns` variables so that Func
+        templates like `"{columns.id}"` or `"{meta.db_table}"` resolve
+        against the model.
+        """
+        fields = _AttrDict({field.name: field for field in model._meta.fields})
+        columns = _AttrDict({field.name: field.column for field in model._meta.fields})
+        return {"meta": model._meta, "fields": fields, "columns": columns}
+
+    def render_func(self, model: type[Model]) -> str:
+        """Render the trigger body SQL, resolving Func templates if needed."""
+        func = self.get_func(model)
+        if isinstance(func, Func):
+            return func.render(**self.get_func_template_kwargs(model))
+        return func
 
     def get_condition_sql(self, model: type[Model]) -> str:
         """Render the WHEN clause SQL, or empty string if no condition."""
@@ -195,7 +221,7 @@ class Trigger:
         each operation when multiple are specified.
         """
         table = model._meta.db_table
-        func_sql = self.get_func(model)
+        func_sql = self.render_func(model)
         condition_sql = self.get_condition_sql(model)
         statements = []
 
@@ -263,3 +289,28 @@ class Trigger:
 
         uri = f"{model._meta.label}:{self.name}"
         registry.set(uri, model=model, trigger=self)
+
+
+class Func:
+    """
+    Allows for rendering a function with access to the "meta", "fields",
+    and "columns" variables of the current model.
+
+    For example, `func=Func("SELECT {columns.id} FROM {meta.db_table};")` makes it
+    possible to do inline SQL in the `Meta` of a model and reference its properties.
+    """
+
+    def __init__(self, func):
+        self.func = func
+
+    def render(self, **kwargs) -> str:
+        """
+        Render the SQL of the function.
+
+        Args:
+            **kwargs: Keyword arguments to pass to the function template.
+
+        Returns:
+            The rendered SQL.
+        """
+        return self.func.format(**kwargs)
