@@ -12,11 +12,14 @@ from sqlitetrigger.core import (
 from sqlitetrigger.conditions import Condition, F, Q
 from sqlitetrigger.contrib import FSM, Protect, ReadOnly, SoftDelete
 from sqlitetrigger.installation import install, prune, uninstall
+from sqlitetrigger.migrations import AddTrigger, CompiledTrigger, RemoveTrigger
 from sqlitetrigger.registry import register, registered
 
 __all__ = [
+    "AddTrigger",
     "After",
     "Before",
+    "CompiledTrigger",
     "Condition",
     "Delete",
     "F",
@@ -30,6 +33,7 @@ __all__ = [
     "ReadOnly",
     "register",
     "registered",
+    "RemoveTrigger",
     "SoftDelete",
     "Timing",
     "Trigger",

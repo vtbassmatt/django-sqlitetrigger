@@ -7,7 +7,7 @@ class Book(models.Model):
     class Meta:
         triggers = [
             Trigger(
-                name='book_sheets_update',
+                name='sheets_update',
                 when=After,
                 operation=Update,
                 func="UPDATE example_book SET sheets = new.pages / 2 WHERE id = new.id;",
