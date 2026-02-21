@@ -48,6 +48,33 @@ python manage.py sqlitetrigger install
 - **SoftDelete** — intercept deletes and set a field instead
 - **FSM** — enforce valid field state transitions
 
+## Custom triggers
+
+You can use the `Trigger` class directly.
+
+```python
+from sqlitetrigger import Trigger, After, Update, Func
+
+class Book(models.Model):
+    class Meta:
+        triggers = [
+            Trigger(
+                name='sheets_update',
+                when=After,
+                operation=Update,
+                func=Func("UPDATE {meta.db_table} SET {columns.sheets} = ceil(new.{columns.pages} / 2.0) WHERE {columns.id} = new.{columns.id};"),
+            )
+        ]
+    title = models.CharField(max_length=200)
+    pages = models.PositiveIntegerField()
+    sheets = models.PositiveIntegerField(editable=False)
+
+    def __str__(self):
+        return self.title
+```
+
+See [the `Book` model in the example](example/models.py) to see it in action. The `Func` helper lets you refer to the model's database table and field names without hardcoding them.
+
 ## Running tests
 
 ```bash
